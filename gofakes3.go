@@ -553,6 +553,11 @@ func (g *GoFakeS3) createObject(bucket, object string, w http.ResponseWriter, r 
 		srcBucket := parts[0]
 		srcKey := parts[1]
 
+		srcKey, err = url.QueryUnescape(srcKey)
+		if err != nil {
+			return err
+		}
+
 		src, err := g.storage.GetObject(srcBucket, srcKey, nil)
 		if err != nil {
 			return err
