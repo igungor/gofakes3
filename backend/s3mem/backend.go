@@ -394,7 +394,7 @@ func (db *Backend) GetObjectVersion(
 
 func (db *Backend) HeadObjectVersion(bucketName, objectName string, versionID gofakes3.VersionID) (*gofakes3.Object, error) {
 	if versionID == "" {
-		return db.GetObject(bucketName, objectName, rangeRequest)
+		return db.HeadObject(bucketName, objectName)
 	}
 
 	db.lock.RLock()
