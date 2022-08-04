@@ -1,5 +1,4 @@
-//go:build tools
-// +build tools
+//+build tools
 
 // Run this script like so:
 //
