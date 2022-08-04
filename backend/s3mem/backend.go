@@ -372,6 +372,9 @@ func (db *Backend) GetObjectVersion(
 	bucketName, objectName string,
 	versionID gofakes3.VersionID,
 	rangeRequest *gofakes3.ObjectRangeRequest) (*gofakes3.Object, error) {
+	if versionID == "" {
+		return db.GetObject(bucketName, objectName, rangeRequest)
+	}
 
 	db.lock.RLock()
 	defer db.lock.RUnlock()
@@ -390,6 +393,10 @@ func (db *Backend) GetObjectVersion(
 }
 
 func (db *Backend) HeadObjectVersion(bucketName, objectName string, versionID gofakes3.VersionID) (*gofakes3.Object, error) {
+	if versionID == "" {
+		return db.GetObject(bucketName, objectName, rangeRequest)
+	}
+
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 
