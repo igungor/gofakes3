@@ -12,10 +12,10 @@ import (
 	"runtime/pprof"
 	"time"
 
-	"github.com/igungor/gofakes3"
-	"github.com/igungor/gofakes3/backend/s3afero"
-	"github.com/igungor/gofakes3/backend/s3bolt"
-	"github.com/igungor/gofakes3/backend/s3mem"
+	"github.com/Kucukaslan/gofakes3"
+	"github.com/Kucukaslan/gofakes3/backend/s3afero"
+	"github.com/Kucukaslan/gofakes3/backend/s3bolt"
+	"github.com/Kucukaslan/gofakes3/backend/s3mem"
 	"github.com/spf13/afero"
 )
 
