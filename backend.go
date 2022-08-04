@@ -292,6 +292,8 @@ type VersionedBackend interface {
 	// ObjectDeleteResult and a nil error.
 	DeleteObjectVersion(bucketName, objectName string, versionID VersionID) (ObjectDeleteResult, error)
 
+	DeleteMultiVersions(bucketName string, objects ...ObjectID) (MultiDeleteResult, error)
+
 	// Backend implementers can assume the ListBucketVersionsPage is valid:
 	// KeyMarker and VersionIDMarker will either both be set, or both be unset. No
 	// other combination will be present (S300004).

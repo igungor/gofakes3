@@ -298,6 +298,44 @@ func (db *Backend) DeleteMulti(bucketName string, objects ...string) (result gof
 	return result, nil
 }
 
+func (db *Backend) DeleteMultiVersion(bucketName string, objects ...gofakes3.ObjectID) (result gofakes3.MultiDeleteResult, err error) {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	bucket := db.buckets[bucketName]
+	if bucket == nil {
+		return result, gofakes3.BucketNotFound(bucketName)
+	}
+
+	now := db.timeSource.Now()
+
+	for _, object := range objects {
+		var dresult gofakes3.ObjectDeleteResult
+		var err error
+		if object.VersionID != "" {
+			dresult, err = bucket.rmVersion(object.Key, gofakes3.VersionID(object.VersionID), now)
+			_ = dresult // FIXME: what to do with rm result in multi delete?
+		} else {
+			dresult, err = bucket.rm(object.Key, now)
+			_ = dresult // FIXME: what to do with rm result in multi delete?
+		}
+
+		if err != nil {
+			errres := gofakes3.ErrorResultFromError(err)
+			if errres.Code == gofakes3.ErrInternal {
+				// FIXME: log
+			}
+
+			result.Error = append(result.Error, errres)
+
+		} else {
+			result.Deleted = append(result.Deleted, object)
+		}
+	}
+
+	return result, nil
+}
+
 func (db *Backend) VersioningConfiguration(bucketName string) (versioning gofakes3.VersioningConfiguration, rerr error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
