@@ -313,8 +313,7 @@ func (db *Backend) DeleteMultiVersions(bucketName string, objects ...gofakes3.Ob
 		var dresult gofakes3.ObjectDeleteResult
 		var err error
 		if object.VersionID != "" {
-			dresult, err = bucket.rmVersion(object.Key, gofakes3.VersionID(object.VersionID), now)
-			_ = dresult // FIXME: what to do with rm result in multi delete?
+			_, err = bucket.rmVersion(object.Key, gofakes3.VersionID(object.VersionID), now)
 		} else {
 			dresult, err = bucket.rm(object.Key, now)
 			_ = dresult // FIXME: what to do with rm result in multi delete?
