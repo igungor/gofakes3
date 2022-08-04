@@ -298,7 +298,7 @@ func (db *Backend) DeleteMulti(bucketName string, objects ...string) (result gof
 	return result, nil
 }
 
-func (db *Backend) DeleteMultiVersion(bucketName string, objects ...gofakes3.ObjectID) (result gofakes3.MultiDeleteResult, err error) {
+func (db *Backend) DeleteMultiVersions(bucketName string, objects ...gofakes3.ObjectID) (result gofakes3.MultiDeleteResult, err error) {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
