@@ -105,6 +105,8 @@ func (db *Backend) ListBucket(name string, prefix *gofakes3.Prefix, page gofakes
 		if !prefix.Match(item.data.name, &match) {
 			continue
 
+		} else if item.data.deleteMarker {
+			continue
 		} else if match.CommonPrefix {
 			if match.MatchedPart == lastMatchedPart {
 				continue // Should not count towards keys
