@@ -803,7 +803,8 @@ func TestObjectHeadVersions(t *testing.T) {
 			Bucket: aws.String(defaultBucket),
 			Key:    aws.String("object"),
 		})
-		if !hasErrorCode(err, gofakes3.ErrNoSuchKey) {
+		// aws returns NotFound when you head a key that doesn't exist
+		if !hasErrorCode(err, "NotFound") {
 			ts.Fatal("expected ErrNoSuchKey, found", err)
 		}
 	})
@@ -891,7 +892,7 @@ func TestObjectVersions(t *testing.T) {
 
 		var found []string
 		for _, ver := range out.Versions {
-			found = append(found, aws.StringValue(:ver.VersionId))
+			found = append(found, aws.StringValue(ver.VersionId))
 		}
 		for _, ver := range out.DeleteMarkers {
 			found = append(found, aws.StringValue(ver.VersionId))
