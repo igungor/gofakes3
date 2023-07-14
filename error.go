@@ -83,6 +83,9 @@ const (
 
 	ErrNoSuchVersion ErrorCode = "NoSuchVersion"
 
+	// No need to retransmit the object
+	ErrNotModified ErrorCode = "NotModified"
+
 	ErrRequestTimeTooSkewed ErrorCode = "RequestTimeTooSkewed"
 	ErrTooManyBuckets       ErrorCode = "TooManyBuckets"
 	ErrNotImplemented       ErrorCode = "NotImplemented"
@@ -268,6 +271,9 @@ func (e ErrorCode) Status() int {
 	case ErrNotImplemented:
 		return http.StatusNotImplemented
 
+	case ErrNotModified:
+		return http.StatusNotModified
+
 	case ErrMissingContentLength:
 		return http.StatusLengthRequired
 
@@ -336,7 +342,7 @@ func requestTimeTooSkewed(at time.Time, max time.Duration) error {
 	}
 }
 
-// durationAsMilliseconds tricks xml.Marsha into serialising a time.Duration as
+// durationAsMilliseconds tricks xml.Marshal into serialising a time.Duration as
 // truncated milliseconds instead of nanoseconds.
 type durationAsMilliseconds time.Duration
 

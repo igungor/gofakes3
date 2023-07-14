@@ -8,8 +8,8 @@ import (
 	"io"
 	"log"
 
-	"github.com/igungor/gofakes3"
-	"github.com/igungor/gofakes3/internal/s3io"
+	"github.com/johannesboyne/gofakes3"
+	"github.com/johannesboyne/gofakes3/internal/s3io"
 	bolt "go.etcd.io/bbolt"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -298,6 +298,11 @@ func (db *Backend) PutObject(
 ) (result gofakes3.PutObjectResult, err error) {
 
 	bts, err := gofakes3.ReadAll(input, size)
+	if err != nil {
+		return result, err
+	}
+
+	err = gofakes3.MergeMetadata(db, bucketName, objectName, meta)
 	if err != nil {
 		return result, err
 	}

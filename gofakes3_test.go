@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"reflect"
 	"sort"
 	"strings"
@@ -17,10 +18,9 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/igungor/gofakes3"
-	"github.com/igungor/gofakes3/backend/s3mem"
+	"github.com/johannesboyne/gofakes3"
+	"github.com/johannesboyne/gofakes3/backend/s3mem"
 )
 
 func TestCreateBucket(t *testing.T) {
@@ -108,6 +108,7 @@ func TestListBuckets(t *testing.T) {
 	assertBucketTime("test2", defaultDate)
 	assertBucketTime("test3", defaultDate.Add(1*time.Minute))
 }
+
 
 func TestCreateObject(t *testing.T) {
 	ts := newTestServer(t)
@@ -228,6 +229,131 @@ func TestCreateObjectWithInvalidContentLength(t *testing.T) {
 	}
 }
 
+func TestCreateObjectWithContentDisposition(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close()
+	svc := ts.s3Client()
+
+	_, err := svc.PutObject(&s3.PutObjectInput{
+		Bucket:             aws.String(defaultBucket),
+		Key:                aws.String("object"),
+		Body:               bytes.NewReader([]byte("hello")),
+		ContentDisposition: aws.String("inline; filename=hello_world.txt"),
+	})
+	ts.OK(err)
+
+	obj, err := svc.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(defaultBucket),
+		Key:    aws.String("object"),
+	})
+	if obj.ContentDisposition == nil {
+		t.Fatal("missing Content-Disposition")
+	}
+	if *obj.ContentDisposition != "inline; filename=hello_world.txt" {
+		t.Fatal("Content-Disposition does not match")
+	}
+}
+
+func TestCreateObjectWithContentEncoding(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close()
+	svc := ts.s3Client()
+
+	_, err := svc.PutObject(&s3.PutObjectInput{
+		Bucket: aws.String(defaultBucket),
+		Key:    aws.String("object"),
+		Body: bytes.NewReader([]byte{ // "hello", gzipped
+			0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xcb, 0x48,
+			0xcd, 0xc9, 0xc9, 0x07, 0x00, 0x86, 0xa6, 0x10, 0x36, 0x05, 0x00, 0x00,
+			0x00,
+		}),
+		ContentType:     aws.String("text/plain"),
+		ContentEncoding: aws.String("gzip"),
+	})
+	ts.OK(err)
+
+	obj, err := svc.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(defaultBucket),
+		Key:    aws.String("object"),
+	})
+	content, err := io.ReadAll(obj.Body)
+	if err != nil {
+		t.Fatal("error reading body", err)
+	}
+	if !bytes.Equal(content, []byte("hello")) {
+		t.Fatal("incorrect body with Content-Encoding: gzip")
+	}
+}
+
+func TestCreateObjectMetadataAndObjectTagging(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close()
+	svc := ts.s3Client()
+
+	_, err := svc.PutObject(&s3.PutObjectInput{
+		Bucket: aws.String(defaultBucket),
+		Key:    aws.String("object"),
+		Body:   bytes.NewReader([]byte("hello")),
+		Metadata: map[string]*string{
+			"Test": aws.String("test"),
+		},
+	})
+	ts.OK(err)
+
+	_, err = svc.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(defaultBucket),
+		Key:    aws.String("object"),
+	})
+	ts.OK(err)
+
+	head, err := svc.HeadObject(&s3.HeadObjectInput{
+		Bucket: aws.String(defaultBucket),
+		Key:    aws.String("object"),
+	})
+	ts.OK(err)
+
+	if head.Metadata["Test"] == nil {
+		t.Fatalf("missing metadata: %+v", head.Metadata)
+	}
+	if *head.Metadata["Test"] != "test" {
+		t.Fatal("wrong metadata key")
+	}
+
+	_, err = svc.PutObjectTagging(&s3.PutObjectTaggingInput{
+		Bucket: aws.String(defaultBucket),
+		Key:    aws.String("object"),
+		Tagging: &s3.Tagging{
+			TagSet: []*s3.Tag{
+				{Key: aws.String("Tag-Test"), Value: aws.String("test")},
+			},
+		},
+	})
+	ts.OK(err)
+
+	head, err = svc.HeadObject(&s3.HeadObjectInput{
+		Bucket: aws.String(defaultBucket),
+		Key:    aws.String("object"),
+	})
+	ts.OK(err)
+
+	if head.Metadata["Test"] == nil {
+		t.Fatalf("missing metadata after PutObjectTagging: %+v", head.Metadata)
+	}
+	if *head.Metadata["Test"] != "test" {
+		t.Fatal("wrong metadata key")
+	}
+
+	result, err := svc.GetObjectTagging(&s3.GetObjectTaggingInput{
+		Bucket: aws.String(defaultBucket),
+		Key:    aws.String("object"),
+	})
+	ts.OK(err)
+
+	if *result.TagSet[0].Key != "Tag-Test" && *result.TagSet[0].Value != "test" {
+		t.Fatalf("tag set wrong: %+v", head.Metadata)
+	}
+}
+
 func TestCopyObject(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close()
@@ -300,6 +426,61 @@ func TestListBucketObjectSize(t *testing.T) {
 
 	if *output.Contents[0].Size != int64(5) {
 		ts.Fatalf("Size wanted 5 got :%v\n", *output.Contents[0].Size)
+	}
+}
+
+func TestCopyObjectWithSpecialChars(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close()
+	svc := ts.s3Client()
+
+	srcMeta := map[string]string{
+		"Content-Type": "text/plain",
+	}
+	srcKey := "src+key,with special;chars!?="
+	content := "contents"
+	ts.backendPutString(defaultBucket, srcKey, srcMeta, content)
+	copySource := "/" + defaultBucket + "/" + url.QueryEscape(srcKey)
+	_, err := svc.CopyObject(&s3.CopyObjectInput{
+		Bucket:     aws.String(defaultBucket),
+		Key:        aws.String("dst-key"),
+		CopySource: aws.String(copySource),
+	})
+	ts.OK(err)
+
+	obj, err := svc.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(defaultBucket),
+		Key:    aws.String(srcKey),
+	})
+	if err != nil {
+		t.Fatalf("object not found with key %v", srcKey)
+	}
+	objContent, err := ioutil.ReadAll(obj.Body)
+	ts.OK(err)
+	if !bytes.Equal([]byte(content), objContent) {
+		ts.Fatalf("object contents are different %v!=%v", content, objContent)
+	}
+}
+
+func TestCopyObjectWithSpecialCharsEscapedInvalied(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close()
+	svc := ts.s3Client()
+
+	srcMeta := map[string]string{
+		"Content-Type": "text/plain",
+	}
+	srcKey := "src+key" //encoded srcKey = src%2Bkey
+	content := "contents"
+	ts.backendPutString(defaultBucket, srcKey, srcMeta, content)
+	copySource := "/" + defaultBucket + "/src%2key" //invalid encoding
+	_, err := svc.CopyObject(&s3.CopyObjectInput{
+		Bucket:     aws.String(defaultBucket),
+		Key:        aws.String("dst-key"),
+		CopySource: aws.String(copySource),
+	})
+	if err == nil {
+		t.Fatalf("copy object should return error when copy source encoding is invaid")
 	}
 }
 
@@ -500,6 +681,52 @@ func TestGetObjectRangeInvalid(t *testing.T) {
 
 			ts.backendPutBytes(defaultBucket, "foo", nil, in)
 			assertRangeInvalid(ts, "foo", tc.hdr)
+		})
+	}
+}
+
+func TestGetObjectIfNoneMatch(t *testing.T) {
+	objectKey := "foo"
+	assertModified := func(ts *testServer, ifNoneMatch string, shouldModify bool) {
+		svc := ts.s3Client()
+		input := s3.GetObjectInput{
+			Bucket: aws.String(defaultBucket),
+			Key:    aws.String(objectKey),
+		}
+		if ifNoneMatch != "" {
+			input.IfNoneMatch = aws.String(ifNoneMatch)
+		}
+
+		_, err := svc.GetObject(&input)
+		modified := true
+		if err != nil {
+			if !s3HasErrorCode(err, gofakes3.ErrNotModified) {
+				ts.Fatal("get-object-failed", err)
+			}
+
+			modified = false
+		}
+
+		if modified != shouldModify {
+			ts.Fatal("expected modified", shouldModify, "found", modified)
+		}
+	}
+
+	for idx, tc := range []struct {
+		ifNoneMatch  string
+		shouldModify bool
+	}{
+		{shouldModify: true},
+		{ifNoneMatch: `"5d41402abc4b2a76b9719d911017c592"`, shouldModify: false}, // md5("hello")
+		{ifNoneMatch: `"notTheSameEtag"`, shouldModify: true},
+	} {
+		t.Run(fmt.Sprintf("%d/%s", idx, tc.ifNoneMatch), func(t *testing.T) {
+			ts := newTestServer(t)
+			defer ts.Close()
+
+			ts.backendPutString(defaultBucket, objectKey, nil, "hello")
+
+			assertModified(ts, tc.ifNoneMatch, tc.shouldModify)
 		})
 	}
 }
@@ -1119,13 +1346,6 @@ func TestListBucketPagesFallback(t *testing.T) {
 			t.Fatal()
 		}
 	})
-}
-
-func s3HasErrorCode(err error, code gofakes3.ErrorCode) bool {
-	if err, ok := err.(awserr.Error); ok {
-		return code == gofakes3.ErrorCode(err.Code())
-	}
-	return false
 }
 
 func tryDumpResponse(rs *http.Response, body bool) string {

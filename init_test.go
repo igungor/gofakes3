@@ -36,8 +36,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/igungor/gofakes3"
-	"github.com/igungor/gofakes3/backend/s3mem"
+	"github.com/johannesboyne/gofakes3"
+	"github.com/johannesboyne/gofakes3/backend/s3mem"
 )
 
 const (
@@ -810,6 +810,13 @@ func hasErrorCode(err error, code gofakes3.ErrorCode) bool {
 	} else {
 		return gofakes3.HasErrorCode(err, code)
 	}
+}
+
+func s3HasErrorCode(err error, code gofakes3.ErrorCode) bool {
+	if err, ok := err.(awserr.Error); ok {
+		return code == gofakes3.ErrorCode(err.Code())
+	}
+	return false
 }
 
 func httpClient() *http.Client {

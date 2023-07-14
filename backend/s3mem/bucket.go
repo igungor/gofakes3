@@ -5,8 +5,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/igungor/gofakes3"
-	"github.com/igungor/gofakes3/internal/s3io"
+	"github.com/johannesboyne/gofakes3"
+	"github.com/johannesboyne/gofakes3/internal/s3io"
 	"github.com/ryszard/goskiplist/skiplist"
 )
 
@@ -142,7 +142,7 @@ func (bi *bucketData) toObject(rangeRequest *gofakes3.ObjectRangeRequest, withBo
 
 		// The data slice should be completely replaced if the bucket item is edited, so
 		// it should be safe to return the data slice directly.
-		contents = s3io.ReaderWithDummyCloser{bytes.NewReader(data)}
+		contents = s3io.ReaderWithDummyCloser{Reader: bytes.NewReader(data)}
 
 	} else {
 		contents = s3io.NoOpReadCloser{}
@@ -188,6 +188,13 @@ func (b *bucket) objectVersion(objectName string, versionID gofakes3.VersionID) 
 
 	if obj == nil {
 		return nil, gofakes3.KeyNotFound(objectName)
+	}
+
+	if versionID == "" {
+		if obj.data.deleteMarker {
+			return nil, gofakes3.KeyNotFound(objectName)
+		}
+		return obj.data, nil
 	}
 
 	if obj.data != nil && obj.data.versionID == versionID {

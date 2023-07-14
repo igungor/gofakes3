@@ -3,12 +3,11 @@ package s3mem
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"sync"
 
-	"github.com/igungor/gofakes3"
-	"github.com/igungor/gofakes3/internal/goskipiter"
+	"github.com/johannesboyne/gofakes3"
+	"github.com/johannesboyne/gofakes3/internal/goskipiter"
 )
 
 var (
@@ -227,6 +226,11 @@ func (db *Backend) PutObject(bucketName, objectName string, meta map[string]stri
 		return result, err
 	}
 
+	err = gofakes3.MergeMetadata(db, bucketName, objectName, meta)
+	if err != nil {
+		return result, err
+	}
+
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -245,6 +249,7 @@ func (db *Backend) PutObject(bucketName, objectName string, meta map[string]stri
 		metadata:     meta,
 		lastModified: db.timeSource.Now(),
 	}
+
 	bucket.put(objectName, item)
 
 	if bucket.versioning == gofakes3.VersioningEnabled {
