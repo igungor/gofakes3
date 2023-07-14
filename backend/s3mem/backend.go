@@ -3,6 +3,7 @@ package s3mem
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"sync"
 
@@ -179,6 +180,7 @@ func (db *Backend) HeadObject(bucketName, objectName string) (*gofakes3.Object, 
 
 	obj := bucket.object(objectName)
 	if obj == nil || obj.data.deleteMarker {
+		fmt.Println("**** error is generated here")
 		return nil, gofakes3.KeyNotFound(objectName)
 	}
 

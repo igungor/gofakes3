@@ -891,7 +891,7 @@ func TestObjectVersions(t *testing.T) {
 
 		var found []string
 		for _, ver := range out.Versions {
-			found = append(found, aws.StringValue(ver.VersionId))
+			found = append(found, aws.StringValue(:ver.VersionId))
 		}
 		for _, ver := range out.DeleteMarkers {
 			found = append(found, aws.StringValue(ver.VersionId))
