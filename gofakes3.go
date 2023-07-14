@@ -464,10 +464,11 @@ func (g *GoFakeS3) headObject(
 		} else {
 			if g.versioned == nil {
 				return ErrNotImplemented
-			}
-			obj, err = g.versioned.HeadObjectVersion(bucket, object, versionID)
-			if err != nil {
-				return err
+			} else {
+				obj, err = g.versioned.HeadObjectVersion(bucket, object, versionID)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}

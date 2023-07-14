@@ -680,7 +680,7 @@ func TestObjectHeadVersions(t *testing.T) {
 		}
 	}
 
-	get := func(ts *testServer, bucket, key string, contents []byte, version string) {
+	head := func(ts *testServer, bucket, key string, contentLength int, version string) {
 		ts.Helper()
 		svc := ts.s3Client()
 		input := &s3.HeadObjectInput{
@@ -694,7 +694,7 @@ func TestObjectHeadVersions(t *testing.T) {
 		out, err := svc.HeadObject(input)
 		ts.OK(err)
 		result := int(*out.ContentLength)
-		expected := len(contents)
+		expected := contentLength
 		if result != expected {
 			ts.Fatal("content-length mismatch. found:", result, "expected:", expected)
 		}
@@ -760,21 +760,21 @@ func TestObjectHeadVersions(t *testing.T) {
 		defer ts.Close()
 
 		create(ts, defaultBucket, "object", []byte("body 0"), v1)
-		get(ts, defaultBucket, "object", []byte("body 0"), "")
+		head(ts, defaultBucket, "object", len([]byte("body 0")), "")
 		list(ts, defaultBucket, v1)
 
 		create(ts, defaultBucket, "object", []byte("body 00"), v2)
-		get(ts, defaultBucket, "object", []byte("body 00"), "")
+		head(ts, defaultBucket, "object", len([]byte("body 00")), "")
 		list(ts, defaultBucket, v1, v2)
 
 		create(ts, defaultBucket, "object", []byte("body 000"), v3)
-		get(ts, defaultBucket, "object", []byte("body 000"), "")
+		head(ts, defaultBucket, "object", len([]byte("body 000")), "")
 		list(ts, defaultBucket, v1, v2, v3)
 
-		get(ts, defaultBucket, "object", []byte("body 0"), v1)
-		get(ts, defaultBucket, "object", []byte("body 00"), v2)
-		get(ts, defaultBucket, "object", []byte("body 000"), v3)
-		get(ts, defaultBucket, "object", []byte("body 000"), "")
+		head(ts, defaultBucket, "object", len([]byte("body 0")), v1)
+		head(ts, defaultBucket, "object", len([]byte("body 00")), v2)
+		head(ts, defaultBucket, "object", len([]byte("body 000")), v3)
+		head(ts, defaultBucket, "object", len([]byte("body 000")), "")
 
 		deleteVersion(ts, defaultBucket, "object", v1)
 		list(ts, defaultBucket, v2, v3)
@@ -793,13 +793,13 @@ func TestObjectHeadVersions(t *testing.T) {
 		create(ts, defaultBucket, "object", []byte("body 00"), v2)
 		list(ts, defaultBucket, v1, v2)
 
-		get(ts, defaultBucket, "object", []byte("body 00"), "")
+		head(ts, defaultBucket, "object", len([]byte("body 00")), "")
 
 		deleteDirect(ts, defaultBucket, "object", v3)
 		list(ts, defaultBucket, v1, v2, v3)
 
 		svc := ts.s3Client()
-		_, err := svc.GetObject(&s3.GetObjectInput{
+		_, err := svc.HeadObject(&s3.HeadObjectInput{
 			Bucket: aws.String(defaultBucket),
 			Key:    aws.String("object"),
 		})
