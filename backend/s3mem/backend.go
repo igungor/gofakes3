@@ -3,7 +3,6 @@ package s3mem
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"sync"
 
