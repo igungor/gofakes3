@@ -453,10 +453,26 @@ func (g *GoFakeS3) headObject(
 	g.log.Print(LogInfo, "Bucket:", bucket)
 	g.log.Print(LogInfo, "└── Object:", object)
 
-	obj, err := g.storage.HeadObject(bucket, object)
-	if err != nil {
-		return err
+	var obj *Object
+	var err error
+	{
+		if versionID == "" {
+			obj, err = g.storage.HeadObject(bucket, object)
+			if err != nil {
+				return err
+			}
+		} else {
+			if g.versioned == nil {
+				return ErrNotImplemented
+			} else {
+				obj, err = g.versioned.HeadObjectVersion(bucket, object, versionID)
+				if err != nil {
+					return err
+				}
+			}
+		}
 	}
+
 	if obj == nil {
 		g.log.Print(LogErr, "unexpected nil object for key", bucket, object)
 		return ErrInternal

@@ -688,6 +688,162 @@ func TestVersioning(t *testing.T) {
 	})
 }
 
+func TestObjectHeadVersions(t *testing.T) {
+	create := func(ts *testServer, bucket, key string, contents []byte, version string) {
+		ts.Helper()
+		svc := ts.s3Client()
+		out, err := svc.PutObject(&s3.PutObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    aws.String(key),
+			Body:   bytes.NewReader(contents),
+		})
+		ts.OK(err)
+		if aws.StringValue(out.VersionId) != version {
+			t.Fatal("version ID mismatch. found:", aws.StringValue(out.VersionId), "expected:", version)
+		}
+	}
+
+	head := func(ts *testServer, bucket, key string, contentLength int, version string) {
+		ts.Helper()
+		svc := ts.s3Client()
+		input := &s3.HeadObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    aws.String(key),
+		}
+		if version != "" {
+			input.VersionId = aws.String(version)
+		}
+
+		out, err := svc.HeadObject(input)
+		ts.OK(err)
+		result := int(*out.ContentLength)
+		expected := contentLength
+		if result != expected {
+			ts.Fatal("content-length mismatch. found:", result, "expected:", expected)
+		}
+	}
+
+	deleteVersion := func(ts *testServer, bucket, key, version string) {
+		ts.Helper()
+		svc := ts.s3Client()
+		input := &s3.DeleteObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    aws.String(key),
+		}
+		if version != "" {
+			input.VersionId = aws.String(version)
+		}
+		ts.OKAll(svc.DeleteObject(input))
+	}
+
+	deleteDirect := func(ts *testServer, bucket, key, version string) {
+		ts.Helper()
+		svc := ts.s3Client()
+		input := &s3.DeleteObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    aws.String(key),
+		}
+		out, err := svc.DeleteObject(input)
+		ts.OK(err)
+		if aws.StringValue(out.VersionId) != version {
+			t.Fatal("version ID mismatch. found:", aws.StringValue(out.VersionId), "expected:", version)
+		}
+	}
+
+	list := func(ts *testServer, bucket string, versions ...string) {
+		ts.Helper()
+		svc := ts.s3Client()
+		out, err := svc.ListObjectVersions(&s3.ListObjectVersionsInput{Bucket: aws.String(bucket)})
+		ts.OK(err)
+
+		var found []string
+		for _, ver := range out.Versions {
+			found = append(found, aws.StringValue(ver.VersionId))
+		}
+		for _, ver := range out.DeleteMarkers {
+			found = append(found, aws.StringValue(ver.VersionId))
+		}
+
+		// Unfortunately, the S3 client API destroys the order of Versions and
+		// DeleteMarkers, which are sibling elements in the XML body but separated
+		// into different lists by the client:
+		sort.Strings(found)
+		sort.Strings(versions)
+		if !reflect.DeepEqual(found, versions) {
+			ts.Fatal("versions mismatch. found:", found, "expected:", versions)
+		}
+	}
+
+	const v1 = "3/60O30C1G60O30C1G60O30C1G60O30C1G60O30C1G60O30C1H03F9QN5V72K21OG="
+	const v2 = "3/60O30C1G60O30C1G60O30C1G60O30C1G60O30C1G60O30C1I00G5II3TDAF7GRG="
+	const v3 = "3/60O30C1G60O30C1G60O30C1G60O30C1G60O30C1G60O30C1J01VFV0CD31ES81G="
+
+	t.Run("put-list-delete-versions", func(t *testing.T) {
+		ts := newTestServer(t, withVersioning())
+		defer ts.Close()
+
+		create(ts, defaultBucket, "object", []byte("body 0"), v1)
+		head(ts, defaultBucket, "object", len([]byte("body 0")), "")
+		list(ts, defaultBucket, v1)
+
+		create(ts, defaultBucket, "object", []byte("body 00"), v2)
+		head(ts, defaultBucket, "object", len([]byte("body 00")), "")
+		list(ts, defaultBucket, v1, v2)
+
+		create(ts, defaultBucket, "object", []byte("body 000"), v3)
+		head(ts, defaultBucket, "object", len([]byte("body 000")), "")
+		list(ts, defaultBucket, v1, v2, v3)
+
+		head(ts, defaultBucket, "object", len([]byte("body 0")), v1)
+		head(ts, defaultBucket, "object", len([]byte("body 00")), v2)
+		head(ts, defaultBucket, "object", len([]byte("body 000")), v3)
+		head(ts, defaultBucket, "object", len([]byte("body 000")), "")
+
+		deleteVersion(ts, defaultBucket, "object", v1)
+		list(ts, defaultBucket, v2, v3)
+		deleteVersion(ts, defaultBucket, "object", v2)
+		list(ts, defaultBucket, v3)
+		deleteVersion(ts, defaultBucket, "object", v3)
+		list(ts, defaultBucket)
+	})
+
+	t.Run("delete-direct", func(t *testing.T) {
+		ts := newTestServer(t, withVersioning())
+		defer ts.Close()
+
+		create(ts, defaultBucket, "object", []byte("body 0"), v1)
+		list(ts, defaultBucket, v1)
+		create(ts, defaultBucket, "object", []byte("body 00"), v2)
+		list(ts, defaultBucket, v1, v2)
+
+		head(ts, defaultBucket, "object", len([]byte("body 00")), "")
+
+		deleteDirect(ts, defaultBucket, "object", v3)
+		list(ts, defaultBucket, v1, v2, v3)
+
+		svc := ts.s3Client()
+		_, err := svc.HeadObject(&s3.HeadObjectInput{
+			Bucket: aws.String(defaultBucket),
+			Key:    aws.String("object"),
+		})
+		// aws returns NotFound when you head a key that doesn't exist
+		if !hasErrorCode(err, "NotFound") {
+			ts.Fatalf("expected 'NotFound' error, got %v", err)
+		}
+	})
+
+	t.Run("list-never-versioned", func(t *testing.T) {
+		ts := newTestServer(t, withVersioning())
+		defer ts.Close()
+
+		const neverVerBucket = "neverver"
+		ts.backendCreateBucket(neverVerBucket)
+
+		ts.backendPutString(neverVerBucket, "object", nil, "body 0")
+		list(ts, neverVerBucket, "null") // S300005
+	})
+}
+
 func TestObjectVersions(t *testing.T) {
 	create := func(ts *testServer, bucket, key string, contents []byte, version string) {
 		ts.Helper()
@@ -713,6 +869,7 @@ func TestObjectVersions(t *testing.T) {
 		if version != "" {
 			input.VersionId = aws.String(version)
 		}
+
 		out, err := svc.GetObject(input)
 		ts.OK(err)
 		defer out.Body.Close()
