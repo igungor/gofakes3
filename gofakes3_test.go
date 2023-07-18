@@ -805,7 +805,7 @@ func TestObjectHeadVersions(t *testing.T) {
 		})
 		// aws returns NotFound when you head a key that doesn't exist
 		if !hasErrorCode(err, "NotFound") {
-			ts.Fatal("expected ErrNoSuchKey, found", err)
+			ts.Fatalf("expected 'NotFound' error, got %v", err)
 		}
 	})
 
