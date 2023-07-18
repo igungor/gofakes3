@@ -227,7 +227,30 @@ func TestCreateObjectWithInvalidContentLength(t *testing.T) {
 		t.Fatal(rs.StatusCode, "!=", http.StatusBadRequest)
 	}
 }
+func TestCreateObjectWithContentDisposition(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close()
+	svc := ts.s3Client()
+	expectedValue := "inline; filename=hello_world.txt"
+	_, err := svc.PutObject(&s3.PutObjectInput{
+		Bucket:             aws.String(defaultBucket),
+		Key:                aws.String("object"),
+		Body:               bytes.NewReader([]byte("hello")),
+		ContentDisposition: aws.String(expectedValue),
+	})
+	ts.OK(err)
 
+	obj, err := svc.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(defaultBucket),
+		Key:    aws.String("object"),
+	})
+	if obj.ContentDisposition == nil {
+		t.Fatal("missing Content-Disposition")
+	}
+	if *obj.ContentDisposition != expectedValue {
+		t.Fatalf("Expected: %s, got: %s\n", expectedValue, *obj.ContentDisposition)
+	}
+}
 func TestCopyObject(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close()
