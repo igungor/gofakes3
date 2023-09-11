@@ -227,16 +227,27 @@ func TestCreateObjectWithInvalidContentLength(t *testing.T) {
 		t.Fatal(rs.StatusCode, "!=", http.StatusBadRequest)
 	}
 }
-func TestCreateObjectWithContentDisposition(t *testing.T) {
+func TestCreateObjectMetadataHeaders(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close()
 	svc := ts.s3Client()
-	expectedValue := "inline; filename=hello_world.txt"
+	const (
+		contentType        = "text/plain"
+		contentEncoding    = "utf-8"
+		contentDisposition = "attachment; filename=\"fname.ext\""
+		expires            = "2025-12-25T00:00:00.000Z"
+		cacheControl       = "max-age=3600"
+	)
+
 	_, err := svc.PutObject(&s3.PutObjectInput{
 		Bucket:             aws.String(defaultBucket),
 		Key:                aws.String("object"),
 		Body:               bytes.NewReader([]byte("hello")),
-		ContentDisposition: aws.String(expectedValue),
+		ContentDisposition: aws.String(contentDisposition),
+		ContentType:        aws.String(contentType),
+		ContentEncoding:    aws.String(contentEncoding),
+		Expires:            aws.Time(time.Date(2025, 12, 25, 0, 0, 0, 0, time.UTC)),
+		CacheControl:       aws.String(cacheControl),
 	})
 	ts.OK(err)
 
@@ -244,13 +255,53 @@ func TestCreateObjectWithContentDisposition(t *testing.T) {
 		Bucket: aws.String(defaultBucket),
 		Key:    aws.String("object"),
 	})
-	if obj.ContentDisposition == nil {
-		t.Fatal("missing Content-Disposition")
+
+	if err != nil {
+		t.Fatal(err)
 	}
-	if *obj.ContentDisposition != expectedValue {
-		t.Fatalf("Expected: %s, got: %s\n", expectedValue, *obj.ContentDisposition)
+
+	if obj.ContentType == nil {
+		t.Fatalf("Expected: %s, got: %s\n", contentType, "nil")
+	} else if *obj.ContentType != contentType {
+		t.Fatalf("Expected: %s, got: %s\n", contentType, *obj.ContentType)
+	}
+
+	if obj.ContentEncoding == nil {
+		t.Fatalf("Expected: %s, got: %s\n", contentEncoding, "nil")
+	} else if *obj.ContentEncoding != contentEncoding {
+		t.Fatalf("Expected: %s, got: %s\n", contentEncoding, *obj.ContentEncoding)
+	}
+
+	// expires formatted as RFC3339 in the input, returned as RFC1123
+	if obj.Expires == nil {
+		t.Fatalf("Expected: %s, got: %s\n", expires, "nil")
+	} else {
+		expected, err := time.Parse(time.RFC3339, expires)
+		if err != nil {
+			t.Fatalf("Failed to parse expected expires: %s\n", err)
+		}
+
+		got, err := time.Parse(time.RFC1123, *obj.Expires)
+		if err != nil {
+			t.Fatalf("Failed to parse returned expires: %s\n", err)
+		}
+
+		t.Fatalf("Expected: %s, got: %s\n", expected, got)
+	}
+
+	if obj.CacheControl == nil {
+		t.Fatalf("Expected: %s, got: %s\n", cacheControl, "nil")
+	} else if *obj.CacheControl != cacheControl {
+		t.Fatalf("Expected: %s, got: %s\n", cacheControl, *obj.CacheControl)
+	}
+
+	if obj.ContentDisposition == nil {
+		t.Fatalf("Expected: %s, got: %s\n", contentDisposition, "nil")
+	} else if *obj.ContentDisposition != contentDisposition {
+		t.Fatalf("Expected: %s, got: %s\n", contentDisposition, *obj.ContentDisposition)
 	}
 }
+
 func TestCopyObject(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close()
