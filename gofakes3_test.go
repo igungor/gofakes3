@@ -306,18 +306,6 @@ func TestCopyObject(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close()
 	svc := ts.s3Client()
-	ts.backendPutString(defaultBucket, "src-key", nil, "content")
-	l, err := svc.ListObjectsV2(&s3.ListObjectsV2Input{
-		Bucket: aws.String(defaultBucket),
-	})
-
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, v := range l.Contents {
-		fmt.Println(*v.Key)
-	}
 
 	srcMeta := map[string]string{
 		"Content-Type":     "text/plain",
