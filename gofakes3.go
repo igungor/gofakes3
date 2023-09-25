@@ -579,11 +579,6 @@ func (g *GoFakeS3) createObject(bucket, object string, w http.ResponseWriter, r 
 			return err
 		}
 
-		if src == nil {
-			g.log.Print(LogErr, "unexpected nil object for key", bucket, object)
-			return ErrInternal
-		}
-
 		if meta["X-Amz-Metadata-Directive"] == "COPY" {
 			meta = src.Metadata
 		}
