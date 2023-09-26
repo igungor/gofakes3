@@ -308,20 +308,23 @@ func TestCopyObject(t *testing.T) {
 	svc := ts.s3Client()
 
 	srcMeta := map[string]string{
-		"Content-Type":   "text/plain",
-		"X-Amz-Meta-One": "src",
-		"X-Amz-Meta-Two": "src",
+		"Content-Type":     "text/plain",
+		"X-Amz-Meta-One":   "src",
+		"X-Amz-Meta-Two":   "src",
+		"X-Amz-Meta-Three": "src",
 	}
+
 	ts.backendPutString(defaultBucket, "src-key", srcMeta, "content")
 
 	out, err := svc.CopyObject(&s3.CopyObjectInput{
 		Bucket:     aws.String(defaultBucket),
 		Key:        aws.String("dst-key"),
-		CopySource: aws.String("/" + defaultBucket + "/src-key"),
+		CopySource: aws.String(defaultBucket + "/src-key"),
 		Metadata: map[string]*string{
 			"Two":   aws.String("dst"),
 			"Three": aws.String("dst"),
 		},
+		MetadataDirective: aws.String("COPY"),
 	})
 	ts.OK(err)
 
@@ -342,6 +345,54 @@ func TestCopyObject(t *testing.T) {
 
 	if v := obj.Metadata["X-Amz-Meta-One"]; v != "src" {
 		t.Fatalf("bad Content-Type: %q", v)
+	}
+
+	if v := obj.Metadata["X-Amz-Meta-Two"]; v != "src" {
+		t.Fatalf("bad Content-Encoding: %q", v)
+	}
+
+	if v := obj.Metadata["X-Amz-Meta-Three"]; v != "src" {
+		t.Fatalf("bad Content-Encoding: %q", v)
+	}
+}
+
+func TestCopyObjectWithReplaceDirective(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close()
+	svc := ts.s3Client()
+
+	srcMeta := map[string]string{
+		"Content-Type":   "text/plain",
+		"X-Amz-Meta-One": "src",
+		"X-Amz-Meta-Two": "src",
+	}
+	ts.backendPutString(defaultBucket, "src-key", srcMeta, "content")
+
+	out, err := svc.CopyObject(&s3.CopyObjectInput{
+		Bucket:     aws.String(defaultBucket),
+		Key:        aws.String("dst-key"),
+		CopySource: aws.String(defaultBucket + "/src-key"),
+		Metadata: map[string]*string{
+			"Two":   aws.String("dst"),
+			"Three": aws.String("dst"),
+		},
+		MetadataDirective: aws.String("REPLACE"),
+	})
+	ts.OK(err)
+
+	if *out.CopyObjectResult.ETag != `"9a0364b9e99bb480dd25e1f0284c8555"` { // md5("content")
+		ts.Fatal("bad etag", *out.CopyObjectResult.ETag)
+	}
+
+	obj, err := ts.backend.GetObject(defaultBucket, "dst-key", nil)
+	ts.OK(err)
+
+	defer obj.Contents.Close()
+	data, err := ioutil.ReadAll(obj.Contents)
+	ts.OK(err)
+
+	if string(data) != "content" {
+		t.Fatal("object copying failed")
 	}
 
 	if v := obj.Metadata["X-Amz-Meta-Two"]; v != "dst" {
