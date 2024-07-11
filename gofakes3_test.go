@@ -227,6 +227,7 @@ func TestCreateObjectWithInvalidContentLength(t *testing.T) {
 		t.Fatal(rs.StatusCode, "!=", http.StatusBadRequest)
 	}
 }
+
 func TestCreateObjectMetadataHeaders(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close()
@@ -255,7 +256,6 @@ func TestCreateObjectMetadataHeaders(t *testing.T) {
 		Bucket: aws.String(defaultBucket),
 		Key:    aws.String("object"),
 	})
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,7 +286,9 @@ func TestCreateObjectMetadataHeaders(t *testing.T) {
 			t.Fatalf("Failed to parse returned expires: %s\n", err)
 		}
 
-		t.Fatalf("Expected: %s, got: %s\n", expected, got)
+		if !expected.Equal(got) {
+			t.Fatalf("Expected: %s, got: %s\n", expected, got)
+		}
 	}
 
 	if obj.CacheControl == nil {
