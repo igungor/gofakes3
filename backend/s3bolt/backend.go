@@ -300,7 +300,7 @@ func (db *Backend) PutObject(
 	bucketName, objectName string,
 	meta map[string]string,
 	input io.Reader, size int64,
-	storageClass string,
+	storageClass gofakes3.StorageClass,
 ) (result gofakes3.PutObjectResult, err error) {
 
 	bts, err := gofakes3.ReadAll(input, size)
@@ -324,7 +324,7 @@ func (db *Backend) PutObject(
 			LastModified: mod,
 			Contents:     bts,
 			Hash:         hash[:],
-			StorageClass: gofakes3.StorageClass(storageClass),
+			StorageClass: storageClass,
 		})
 		if err != nil {
 			return err

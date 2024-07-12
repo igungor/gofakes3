@@ -96,7 +96,7 @@ func NewContentTime(t time.Time) ContentTime {
 func (c ContentTime) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	// This is the format expected by the aws xml code, not the default.
 	if !c.IsZero() {
-		var s = c.Format("2006-01-02T15:04:05.999Z")
+		s := c.Format("2006-01-02T15:04:05.999Z")
 		return e.EncodeElement(s, start)
 	}
 	return nil
@@ -127,7 +127,7 @@ func (d MultiDeleteResult) AsError() error {
 	if len(d.Error) == 0 {
 		return nil
 	}
-	var strs = make([]string, 0, len(d.Error))
+	strs := make([]string, 0, len(d.Error))
 	for _, er := range d.Error {
 		strs = append(strs, er.String())
 	}
@@ -339,7 +339,6 @@ func NewListBucketVersionsResult(
 	prefix *Prefix,
 	page *ListBucketVersionsPage,
 ) *ListBucketVersionsResult {
-
 	result := &ListBucketVersionsResult{
 		Xmlns: "http://s3.amazonaws.com/doc/2006-03-01/",
 		Name:  bucketName,

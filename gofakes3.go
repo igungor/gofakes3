@@ -534,7 +534,7 @@ func (g *GoFakeS3) createObjectBrowserUpload(bucket string, w http.ResponseWrite
 		return err
 	}
 
-	result, err := g.storage.PutObject(bucket, key, meta, rdr, fileHeader.Size, r.Header.Get("x-amz-storage-class"))
+	result, err := g.storage.PutObject(bucket, key, meta, rdr, fileHeader.Size, StorageClass(r.Header.Get("x-amz-storage-class")))
 	if err != nil {
 		return err
 	}
@@ -622,7 +622,7 @@ func (g *GoFakeS3) createObject(bucket, object string, w http.ResponseWriter, r 
 		r.Header.Set("x-amz-storage-class", "STANDARD")
 	}
 
-	result, err := g.storage.PutObject(bucket, object, meta, rdr, size, r.Header.Get("x-amz-storage-class"))
+	result, err := g.storage.PutObject(bucket, object, meta, rdr, size, StorageClass(r.Header.Get("x-amz-storage-class")))
 	if err != nil {
 		return err
 	}
@@ -684,7 +684,7 @@ func (g *GoFakeS3) copyObject(bucket, object string, meta map[string]string, w h
 		}
 	}
 
-	result, err := g.storage.PutObject(bucket, object, meta, srcObj.Contents, srcObj.Size, r.Header.Get("x-amz-storage-class"))
+	result, err := g.storage.PutObject(bucket, object, meta, srcObj.Contents, srcObj.Size, StorageClass(r.Header.Get("x-amz-storage-class")))
 	if err != nil {
 		return err
 	}
@@ -899,7 +899,7 @@ func (g *GoFakeS3) completeMultipartUpload(bucket, object string, uploadID Uploa
 		return err
 	}
 
-	result, err := g.storage.PutObject(bucket, object, upload.Meta, bytes.NewReader(fileBody), int64(len(fileBody)), r.Header.Get("x-amz-storage-class"))
+	result, err := g.storage.PutObject(bucket, object, upload.Meta, bytes.NewReader(fileBody), int64(len(fileBody)), StorageClass(r.Header.Get("x-amz-storage-class")))
 	if err != nil {
 		return err
 	}

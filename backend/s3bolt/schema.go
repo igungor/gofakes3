@@ -27,7 +27,7 @@ type boltObject struct {
 	Size         int64
 	Contents     []byte
 	Hash         []byte
-	StorageClass gofakes3.StorageClass
+	StorageClass gofakes3.StorageClass `bson:",omitempty"`
 }
 
 func (b *boltObject) Object(objectName string, rangeRequest *gofakes3.ObjectRangeRequest) (*gofakes3.Object, error) {

@@ -289,7 +289,7 @@ func (db *SingleBucketBackend) PutObject(
 	bucketName, objectName string,
 	meta map[string]string,
 	input io.Reader, size int64,
-	storageClass string,
+	storageClass gofakes3.StorageClass,
 ) (result gofakes3.PutObjectResult, err error) {
 
 	if bucketName != db.name {
