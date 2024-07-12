@@ -484,20 +484,6 @@ func (s StorageClass) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	return e.EncodeElement(string(s), start)
 }
 
-func IsStorageClassValid(storageClass string) bool {
-	if storageClass == "STANDARD" ||
-		storageClass == "REDUCED_REDUNDANCY" ||
-		storageClass == "STANDARD_IA" ||
-		storageClass == "ONEZONE_IA" ||
-		storageClass == "INTELLIGENT_TIERING" ||
-		storageClass == "GLACIER" ||
-		storageClass == "DEEP_ARCHIVE" {
-		return true
-	} else {
-		return false
-	}
-}
-
 const (
 	StorageStandard StorageClass = "STANDARD"
 )
