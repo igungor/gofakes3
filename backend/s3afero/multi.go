@@ -378,6 +378,7 @@ func (db *MultiBucketBackend) PutObject(
 	bucketName, objectName string,
 	meta map[string]string,
 	input io.Reader, size int64,
+	storageClass string,
 ) (result gofakes3.PutObjectResult, err error) {
 
 	db.lock.Lock()

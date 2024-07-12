@@ -20,6 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/igungor/gofakes3"
+	"github.com/igungor/gofakes3/backend/s3bolt"
 	"github.com/igungor/gofakes3/backend/s3mem"
 )
 
@@ -1244,6 +1245,57 @@ func TestListBucketPagesFallback(t *testing.T) {
 			t.Fatal()
 		}
 	})
+}
+
+func TestListBucketWithStorageClass(t *testing.T) {
+	// Create a new file path to give to the backend with fs
+	tempDir, err := ioutil.TempDir("", "s3bolt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	file, err := ioutil.TempFile(tempDir, "s3bolt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	boltBackend, err := s3bolt.NewFile(file.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer boltBackend.Close()
+
+	ts := newTestServer(t, withBackend(boltBackend))
+	defer ts.Close()
+
+	metadata := map[string]string{
+		"x-amz-storage-class": "STANDARD",
+	}
+
+	ts.backendPutString(defaultBucket, "standard", metadata, "body")
+
+	metadata["x-amz-storage-class"] = "GLACIER"
+	ts.backendPutString(defaultBucket, "reduced", metadata, "body")
+
+	rs := ts.mustListBucketV2Pages(nil, 2, "")
+
+	// The order of keys is not guaranteed, so we need to check the storage class
+	// of each key individually.
+	for _, obj := range rs.Contents {
+		t.Log("key:", aws.StringValue(obj.Key), "storage class:", aws.StringValue(obj.StorageClass))
+		key := aws.StringValue(obj.Key)
+		if key == "standard" {
+			if aws.StringValue(obj.StorageClass) != "STANDARD" {
+				t.Fatal("unexpected storage class for standard object")
+			}
+		} else if key == "reduced" {
+			if aws.StringValue(obj.StorageClass) != "GLACIER" {
+				t.Fatal("unexpected storage class for reduced object")
+			}
+		} else {
+			t.Fatalf("unexpected key: %s", key)
+		}
+	}
 }
 
 func s3HasErrorCode(err error, code gofakes3.ErrorCode) bool {

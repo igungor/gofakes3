@@ -256,6 +256,7 @@ type DeleteMarker struct {
 	VersionID    VersionID   `xml:"VersionId"`
 	IsLatest     bool        `xml:"IsLatest"`
 	LastModified ContentTime `xml:"LastModified,omitempty"`
+	StorageClass string      `xml:"StorageClass"`
 	Owner        *UserInfo   `xml:"Owner,omitempty"`
 }
 
@@ -428,6 +429,7 @@ type ListMultipartUploadPartItem struct {
 	LastModified ContentTime `xml:"LastModified,omitempty"`
 	ETag         string      `xml:"ETag,omitempty"`
 	Size         int64       `xml:"Size"`
+	StorageClass string      `xml:"StorageClass,omitempty"`
 }
 
 // CopyObjectResult contains the response from a CopyObject operation.
@@ -435,6 +437,7 @@ type CopyObjectResult struct {
 	XMLName      xml.Name    `xml:"CopyObjectResult"`
 	ETag         string      `xml:"ETag,omitempty"`
 	LastModified ContentTime `xml:"LastModified,omitempty"`
+	StorageClass string      `xml:"StorageClass,omitempty"`
 }
 
 // MFADeleteStatus is used by VersioningConfiguration.
@@ -479,6 +482,20 @@ func (s StorageClass) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 		s = StorageStandard
 	}
 	return e.EncodeElement(string(s), start)
+}
+
+func IsStorageClassValid(storageClass string) bool {
+	if storageClass == "STANDARD" ||
+		storageClass == "REDUCED_REDUNDANCY" ||
+		storageClass == "STANDARD_IA" ||
+		storageClass == "ONEZONE_IA" ||
+		storageClass == "INTELLIGENT_TIERING" ||
+		storageClass == "GLACIER" ||
+		storageClass == "DEEP_ARCHIVE" {
+		return true
+	} else {
+		return false
+	}
 }
 
 const (
