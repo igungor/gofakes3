@@ -249,13 +249,23 @@ func (ts *testServer) backendObjectExists(bucket, key string) bool {
 }
 
 func (ts *testServer) backendPutString(bucket, key string, meta map[string]string, in string) {
+	storageClass := "STANDARD"
+	if meta["x-amz-storage-class"] != "" {
+		storageClass = meta["x-amz-storage-class"]
+	}
+
 	ts.Helper()
-	ts.OKAll(ts.backend.PutObject(bucket, key, meta, strings.NewReader(in), int64(len(in))))
+	ts.OKAll(ts.backend.PutObject(bucket, key, meta, strings.NewReader(in), int64(len(in)), gofakes3.StorageClass(storageClass)))
 }
 
 func (ts *testServer) backendPutBytes(bucket, key string, meta map[string]string, in []byte) {
+	storageClass := "STANDARD"
+	if meta["x-amz-storage-class"] != "" {
+		storageClass = meta["x-amz-storage-class"]
+	}
+
 	ts.Helper()
-	ts.OKAll(ts.backend.PutObject(bucket, key, meta, bytes.NewReader(in), int64(len(in))))
+	ts.OKAll(ts.backend.PutObject(bucket, key, meta, bytes.NewReader(in), int64(len(in)), gofakes3.StorageClass(storageClass)))
 }
 
 func (ts *testServer) backendGetString(bucket, key string, rnge *gofakes3.ObjectRangeRequest) string {
