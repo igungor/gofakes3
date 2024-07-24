@@ -618,7 +618,7 @@ func (g *GoFakeS3) createObject(bucket, object string, w http.ResponseWriter, r 
 		return err
 	}
 
-	if r.Header.Get("x-amz-storage-class") != "" {
+	if r.Header.Get("x-amz-storage-class") == "" {
 		r.Header.Set("x-amz-storage-class", "STANDARD")
 	}
 
