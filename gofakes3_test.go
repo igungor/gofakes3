@@ -228,6 +228,7 @@ func TestCreateObjectWithInvalidContentLength(t *testing.T) {
 		t.Fatal(rs.StatusCode, "!=", http.StatusBadRequest)
 	}
 }
+
 func TestCreateObjectMetadataHeaders(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close()
@@ -256,7 +257,6 @@ func TestCreateObjectMetadataHeaders(t *testing.T) {
 		Bucket: aws.String(defaultBucket),
 		Key:    aws.String("object"),
 	})
-	
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1298,6 +1298,189 @@ func TestListBucketWithStorageClass(t *testing.T) {
 			t.Fatalf("unexpected key: %s", key)
 		}
 	}
+}
+
+func TestCreateObjectWithStorageClassStandard(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "s3bolt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	file, err := ioutil.TempFile(tempDir, "s3bolt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	boltBackend, err := s3bolt.NewFile(file.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer boltBackend.Close()
+
+	ts := newTestServer(t, withBackend(boltBackend))
+	defer ts.Close()
+
+	svc := ts.s3Client()
+
+	_, err = svc.PutObject(&s3.PutObjectInput{
+		Bucket:       aws.String(defaultBucket),
+		Key:          aws.String("object"),
+		Body:         bytes.NewReader([]byte("hello")),
+		StorageClass: aws.String("STANDARD"),
+	})
+	ts.OK(err)
+
+	obj, err := ts.backend.GetObject(defaultBucket, "object", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if obj.StorageClass != "STANDARD" {
+		t.Fatal("storage class is not STANDARD")
+	}
+}
+
+func TestCreateObjectWithStorageClassGlacier(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "s3bolt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	file, err := ioutil.TempFile(tempDir, "s3bolt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	boltBackend, err := s3bolt.NewFile(file.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer boltBackend.Close()
+
+	ts := newTestServer(t, withBackend(boltBackend))
+	defer ts.Close()
+
+	svc := ts.s3Client()
+
+	_, err = svc.PutObject(&s3.PutObjectInput{
+		Bucket:       aws.String(defaultBucket),
+		Key:          aws.String("object"),
+		Body:         bytes.NewReader([]byte("hello")),
+		StorageClass: aws.String("GLACIER"),
+	})
+	ts.OK(err)
+
+	obj, err := ts.backend.GetObject(defaultBucket, "object", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if obj.StorageClass != "GLACIER" {
+		t.Fatal("storage class is not GLACIER")
+	}
+}
+
+func TestCreateObjectBrowserUploadWithStorageClass(t *testing.T) {
+	addFile := func(tt gofakes3.TT, w *multipart.Writer, object string, b []byte) {
+		tt.Helper()
+		tt.OK(w.WriteField("key", object))
+
+		mw, err := w.CreateFormFile("file", "upload")
+		tt.OK(err)
+		n, err := mw.Write(b)
+		if n != len(b) {
+			tt.Fatal("len mismatch", n, "!=", len(b))
+		}
+		tt.OK(err)
+	}
+
+	upload := func(ts *testServer, bucket string, w *multipart.Writer, body io.Reader, storageClass string) (*http.Response, error) {
+		w.Close()
+		req, err := http.NewRequest("POST", ts.url("/"+bucket), body)
+		ts.OK(err)
+		req.Header.Set("Content-Type", w.FormDataContentType())
+		req.Header.Set("X-Amz-Storage-Class", storageClass)
+		return httpClient().Do(req)
+	}
+
+	assertUpload := func(ts *testServer, bucket string, w *multipart.Writer, body io.Reader, etag string, storageClass string) {
+		res, err := upload(ts, bucket, w, body, storageClass)
+		ts.OK(err)
+		if res.StatusCode != http.StatusOK {
+			ts.Fatal("bad status", res.StatusCode, tryDumpResponse(res, true))
+		}
+		if etag != "" && res.Header.Get("ETag") != etag {
+			ts.Fatal("bad etag", res.Header.Get("ETag"), etag)
+		}
+	}
+
+	t.Run("standard-storage-class", func(t *testing.T) {
+		tempDir, err := ioutil.TempDir("", "s3bolt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		file, err := ioutil.TempFile(tempDir, "s3bolt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		boltBackend, err := s3bolt.NewFile(file.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer boltBackend.Close()
+
+		ts := newTestServer(t, withBackend(boltBackend))
+		defer ts.Close()
+
+		var b bytes.Buffer
+		w := multipart.NewWriter(&b)
+		addFile(ts.TT, w, "yep", []byte("stuff"))
+		assertUpload(ts, defaultBucket, w, &b, `"c13d88cb4cb02003daedb8a84e5d272a"`, "STANDARD")
+		obj, err := ts.backend.GetObject(defaultBucket, "yep", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if obj.StorageClass != "STANDARD" {
+			t.Fatal("storage class is not STANDARD")
+		}
+	})
+
+	t.Run("glacier-storage-class", func(t *testing.T) {
+		tempDir, err := ioutil.TempDir("", "s3bolt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		file, err := ioutil.TempFile(tempDir, "s3bolt")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		boltBackend, err := s3bolt.NewFile(file.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer boltBackend.Close()
+
+		ts := newTestServer(t, withBackend(boltBackend))
+		defer ts.Close()
+
+		var b bytes.Buffer
+		w := multipart.NewWriter(&b)
+		addFile(ts.TT, w, "yep", []byte("stuff"))
+		assertUpload(ts, defaultBucket, w, &b, `"c13d88cb4cb02003daedb8a84e5d272a"`, "GLACIER")
+		obj, err := ts.backend.GetObject(defaultBucket, "yep", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if obj.StorageClass != "GLACIER" {
+			t.Fatal("storage class is not GLACIER:", obj.StorageClass)
+		}
+	})
 }
 
 func s3HasErrorCode(err error, code gofakes3.ErrorCode) bool {
